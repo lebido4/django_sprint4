@@ -1,33 +1,38 @@
-from django.db.models import Q
-from django.shortcuts import get_object_or_404, redirect, render
-from django.core.paginator import Paginator
 from django.contrib.auth import get_user_model
-from django.http import Http404
-from django.db.models import Count
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Count
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import CommentForm, EditProfileForm, PostForm, RegistrationForm
-from .models import Post, Category, Comment
+from .models import Category, Comment, Post
 
 User = get_user_model()
 
-POSTS_PER_PAGE = 3
+
+POSTS_PER_PAGE = 10
+
+
+def _public_post_queryset():
+    return (
+        Post.objects.select_related("author", "category", "location")
+        .filter(
+            is_published=True,
+            pub_date__lte=timezone.now(),
+            category__is_published=True
+        )
+        .order_by("-pub_date")
+        .annotate(comment_count=Count("comments"))
+    )
+
 
 def index(request):
-    template_name = 'blog/index.html'
-    post_list = Post.objects.select_related(
-        'author', 'category', 'location'
-    ).filter(
-        Q(is_published=True)
-        & Q(pub_date__lte=timezone.now())
-        & Q(category__is_published=True)
-    ).order_by('-pub_date')[:5]
-
-    paginator = Paginator(post_list, POSTS_PER_PAGE)
+    posts = _public_post_queryset()
+    paginator = Paginator(posts, POSTS_PER_PAGE)
     page_obj = paginator.get_page(request.GET.get("page"))
-    context = {"page_obj": page_obj}
-    return render(request, template_name, context)
+    return render(request, "blog/index.html", {"page_obj": page_obj})
 
 
 def _post_accessible(post: Post, request):
@@ -47,7 +52,6 @@ def _post_accessible(post: Post, request):
 
 
 def post_detail(request, id):
-    template_name = "blog/detail.html"
     post = get_object_or_404(Post, pk=id)
 
     is_accessible = _post_accessible(post, request)
@@ -61,29 +65,31 @@ def post_detail(request, id):
         .order_by("created_at")
     )
     form = CommentForm()
-    context = {"post": post, "comments": comments, "form": form}
-    return render(request, template_name, context)
+    response = render(
+        request,
+        "blog/detail.html",
+        {"post": post, "comments": comments, "form": form},
+    )
+    return response
 
 
 def category_posts(request, category_slug):
-    template_name = 'blog/category.html'
-    category = get_object_or_404(
-        Category,
-        slug=category_slug,
-        is_published=True
-    )
-    post_list = Post.objects.select_related(
-        'author', 'category', 'location'
-    ).filter(
-        category=category,
-        is_published=True,
-        pub_date__lte=timezone.now()
-    ).order_by('-pub_date')
+    category = get_object_or_404(Category, slug=category_slug, is_published=True)
 
-    paginator = Paginator(post_list, POSTS_PER_PAGE)
+    posts = (
+        _public_post_queryset()
+        .filter(category=category)
+        .order_by("-pub_date")
+    )
+
+    paginator = Paginator(posts, POSTS_PER_PAGE)
     page_obj = paginator.get_page(request.GET.get("page"))
-    context = {"category": category, "page_obj": page_obj}
-    return render(request, template_name, context)
+    return render(
+        request,
+        "blog/category.html",
+        {"category": category, "page_obj": page_obj},
+    )
+
 
 def profile(request, username):
     profile_user = get_object_or_404(User, username=username)
