@@ -84,3 +84,30 @@ class Location(PublishedModel):
 
     def __str__(self):
         return self.name
+
+class Comment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="comments",
+        verbose_name='Публикация',
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Автор комментария',
+    )
+    text = models.TextField(verbose_name='Текст комментария')
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата комментария',
+    )
+
+    class Meta:
+        verbose_name = 'комментарий'
+        verbose_name_plural = 'Комментарии'
+
+    def __str__(self):
+        return self.text
+
+
