@@ -12,7 +12,7 @@ from .models import Post, Category, Comment
 
 User = get_user_model()
 
-POSTS_PER_PAGE = 10
+POSTS_PER_PAGE = 3
 
 def index(request):
     template_name = 'blog/index.html'
